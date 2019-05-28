@@ -18,6 +18,7 @@ from model import CartpoleNet, CartpoleConfig
 Deep Q Network Agent
 """
 class DQNAgent:
+    # 초기화
     def __init__(self, config):
         self.config = config
         self.epsilon = config.epsilon
@@ -32,6 +33,7 @@ class DQNAgent:
         self.criterion = torch.nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate)
     
+    # 상태에 대한 Action 에측 (epsilon 확률로 탐험:exploration)
     def get_action(self, state):
         if np.random.rand() <= self.epsilon:
             return random.randrange(self.config.n_action)
@@ -39,18 +41,24 @@ class DQNAgent:
             output = self.model(torch.tensor(state, dtype=torch.float))
             return output.argmax().item()
     
+    # 리플레이 메모리에 St, At, Rt+1, St+1, Done 추가
     def append_replay(self, state, action, reward, next_state, done):
         self.replay_memory.append((state, action, reward, next_state, done))
     
+    # 리플레이 메모리가 일정 수 이상 수집된 후 학습이 가능 함
     def is_train(self):
         return True if self.config.n_train_start < len(self.replay_memory) else False
     
+    # 학습
     def train(self):
+        # 학습이 계속 될 수 록 탐험 학률을 줄여 줌
         if self.epsilon > self.config.epsilon_min:
             self.epsilon *= self.config.epsilon_decay
         
+        # 리플레이 메모리에서 배치사이즈 만큼 랜덤 셈플링
         mini_batch = random.sample(self.replay_memory, self.config.n_batch)
 
+        # 랜덤 샘플링 된 데이터를 배열 형태로 정렬
         states = np.zeros((self.config.n_batch, self.config.n_state))
         next_states = np.zeros((self.config.n_batch, self.config.n_state))
         actions, rewards, dones = [], [], []
@@ -62,27 +70,31 @@ class DQNAgent:
             next_states[i] = mini_batch[i][3]
             dones.append(mini_batch[i][4])
         
-        values = self.model(torch.tensor(states, dtype=torch.float))
-        labels = np.copy(values.detach().numpy())
-        next_values = self.target(torch.tensor(next_states, dtype=torch.float)).detach().numpy()
+        values = self.model(torch.tensor(states, dtype=torch.float)) ## 정답
+        labels = np.copy(values.detach().numpy()) ## Vt
+        next_values = self.target(torch.tensor(next_states, dtype=torch.float)).detach().numpy() ## Vt+1
 
         for i in range(len(labels)):
             if dones[i]:
-                labels[i][actions[i]] = rewards[i]
+                labels[i][actions[i]] = rewards[i] # Vt = Rt+1
             else:
-                labels[i][actions[i]] = rewards[i] + self.config.discount_factor * (np.amax(next_values[i]))
+                labels[i][actions[i]] = rewards[i] + self.config.discount_factor * (np.amax(next_values[i])) # Vt = Rt+1 + rVt+1
         
+        # 학습
         self.optimizer.zero_grad()
         loss = self.criterion(values, torch.tensor(labels, dtype=torch.float))
         loss.backward()
         self.optimizer.step()
     
+    # model의 weight를 target에 저장
     def update_target(self):
         self.target.load_state_dict(self.model.state_dict())
     
+    # model의 weight를 파일로 저장
     def save(self, path):
         torch.save(self.model.state_dict(), path)
     
+    # 파일로 부터 model의 weight를 읽어 옴, target에도 동일하게 적용
     def load(self, path):
         self.model.load_state_dict(torch.load(path))
         self.update_target()
@@ -123,7 +135,7 @@ def train(config):
             # 에피소드가 중간에 끝나면 -100 보상
             reward = reward if not done or score == 499 else -100
 
-            # St, At, Rt+1, St+1: 리플레이 메모리 저장
+            # St, At, Rt+1, St+1, Done: 리플레이 메모리 저장
             agent.append_replay(state, action, reward, next_state, done)
 
             if reward != -100:
@@ -144,8 +156,10 @@ def train(config):
                 if np.mean(scores[-min(5, len(scores)):]) > 499:
                     agent.save(config.save_file)
                     sys.exit()
-    
+    # env 종료
     env.close()
+
+    # 학습 스코어 화면 출력
     plt.plot(epochs, scores, label='score')
     plt.show()
 
@@ -202,8 +216,10 @@ def run(config):
 
                 epochs.append(epoch + 1)
                 scores.append(score)
-    
+    # env 종료
     env.close()
+
+    # 학습 스코어 화면 출력
     plt.plot(epochs, scores, label='score')
     plt.show()
 
