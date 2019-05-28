@@ -11,7 +11,7 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import Bernoulli
 
-from model import CartpoleNet, CartpoleConfig
+from model import CartpoleP, CartpoleConfig
 
 
 # 참고: https://github.com/rlcode/reinforcement-learning-kr/blob/master/1-grid-world/7-reinforce/reinforce_agent.py
@@ -29,9 +29,8 @@ class PGAgent:
         self.history_memory = []
 
         # train model, target model 생성
-        self.model = CartpoleNet(config.n_state, config.n_action)
-        # MSE loss 및 optimizer
-        self.criterion = torch.nn.CrossEntropyLoss()
+        self.model = CartpoleP(config.n_state, config.n_action)
+        # optimizer
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate)
     
     # 상태에 대한 Action 에측 (epsilon 확률로 탐험:exploration)
@@ -75,9 +74,8 @@ class PGAgent:
         discounted_rewards /= np.std(discounted_rewards)
 
         prob = self.model(torch.tensor(states, dtype=torch.float))
-        prob = Bernoulli(prob) # 0..1 값으로 고정 (이 부분을 빼면 학습이 되지 않음, 원인 학인 필요)
-        action_prob = torch.sum(prob.log_prob(torch.tensor(actions, dtype=torch.float)), dim=1) ## π(St,At): 액션을 수행할 확률
-        cross_entropy = action_prob * torch.tensor(discounted_rewards, dtype=torch.float) ## log(π(St,At)) * Gt
+        action_prob = torch.sum(torch.tensor(actions, dtype=torch.float) * prob, dim=1) ## π(St,At): 액션을 수행할 확률
+        cross_entropy = torch.log(action_prob + 1.e-10) * torch.tensor(discounted_rewards, dtype=torch.float) ## log(π(St,At)) * Gt, 1.e-10는 0 방지
         loss = -torch.mean(cross_entropy) ## 음수를 취하여 경사 하강법으로 학습 (sum 보다 mean이 더 학습이 잘 됨)
 
         # 학습
@@ -98,6 +96,12 @@ class PGAgent:
 
 
 def train(config):
+    # pytorch seed 초기화
+    seed = 1029
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+
     # env 초기화
     env = gym.make('CartPole-v1')
 
@@ -105,7 +109,7 @@ def train(config):
     config.n_state = env.observation_space.shape[0]
     config.n_action = env.action_space.n
 
-    # DQN agent 생성
+    # agent 생성
     agent = PGAgent(config)
 
     # 그래프 출력용 데이터
@@ -140,6 +144,7 @@ def train(config):
             state = next_state
             
             if done:
+                # 에프소드가 종료되면 한번에 학습 (몬테카를로)
                 agent.train()
 
                 print("epoch: %d, score: %d" % (epoch + 1, score))
@@ -170,7 +175,7 @@ def run(config):
     config.n_action = env.action_space.n
     config.epsilon = 0
 
-    # DQN agent 생성
+    # agent 생성
     agent = PGAgent(config)
     agent.load(config.save_file)
 

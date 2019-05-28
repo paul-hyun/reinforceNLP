@@ -9,7 +9,7 @@ import gym
 
 import torch
 
-from model import CartpoleNet, CartpoleConfig
+from model import CartpoleQ, CartpoleConfig
 
 
 # 참고: https://github.com/rlcode/reinforcement-learning-kr/blob/master/2-cartpole/1-dqn/cartpole_dqn.py
@@ -27,8 +27,8 @@ class DQNAgent:
         self.replay_memory = deque(maxlen=config.n_replay_memory)
 
         # train model, target model 생성
-        self.model = CartpoleNet(config.n_state, config.n_action, softmax=False)
-        self.target = CartpoleNet(config.n_state, config.n_action, softmax=False)
+        self.model = CartpoleQ(config.n_state, config.n_action)
+        self.target = CartpoleQ(config.n_state, config.n_action)
         # MSE loss 및 optimizer
         self.criterion = torch.nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate)
@@ -71,18 +71,18 @@ class DQNAgent:
             dones.append(mini_batch[i][4])
         
         values = self.model(torch.tensor(states, dtype=torch.float)) ## 정답
-        labels = np.copy(values.detach().numpy()) ## Vt
+        target = np.copy(values.detach().numpy()) ## Vt
         next_values = self.target(torch.tensor(next_states, dtype=torch.float)).detach().numpy() ## Vt+1
 
-        for i in range(len(labels)):
+        for i in range(len(target)):
             if dones[i]:
-                labels[i][actions[i]] = rewards[i] # Vt = Rt+1
+                target[i][actions[i]] = rewards[i] # Vt = Rt+1
             else:
-                labels[i][actions[i]] = rewards[i] + self.config.discount_factor * (np.amax(next_values[i])) # Vt = Rt+1 + rVt+1
+                target[i][actions[i]] = rewards[i] + self.config.discount_factor * (np.amax(next_values[i])) # Vt = Rt+1 + rVt+1
         
         # 학습
         self.optimizer.zero_grad()
-        loss = self.criterion(values, torch.tensor(labels, dtype=torch.float))
+        loss = self.criterion(values, torch.tensor(target, dtype=torch.float))
         loss.backward()
         self.optimizer.step()
     
@@ -108,7 +108,7 @@ def train(config):
     config.n_state = env.observation_space.shape[0]
     config.n_action = env.action_space.n
 
-    # DQN agent 생성
+    # agent 생성
     agent = DQNAgent(config)
 
     # 그래프 출력용 데이터
@@ -142,6 +142,7 @@ def train(config):
                 score += reward
             state = next_state
 
+            # 리플레이 메모리에 일정량 이상의 데이터가 쌓이면 매 스텝마다 학습
             if agent.is_train():
                 agent.train()
             
@@ -175,7 +176,7 @@ def run(config):
     config.n_action = env.action_space.n
     config.epsilon = 0
 
-    # DQN agent 생성
+    # agent 생성
     agent = DQNAgent(config)
     agent.load(config.save_file)
 
