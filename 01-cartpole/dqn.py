@@ -14,6 +14,7 @@ from model import CartpoleQ, CartpoleConfig
 
 # 참고: https://github.com/rlcode/reinforcement-learning-kr/blob/master/2-cartpole/1-dqn/cartpole_dqn.py
 
+
 """
 Deep Q Network Agent
 """
@@ -28,7 +29,9 @@ class DQNAgent:
 
         # train model, target model 생성
         self.model = CartpoleQ(config.n_state, config.n_action)
+        self.model.to(self.config.device)
         self.target = CartpoleQ(config.n_state, config.n_action)
+        self.target.to(self.config.device)
         # MSE loss 및 optimizer
         self.criterion = torch.nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate)
@@ -38,7 +41,8 @@ class DQNAgent:
         if np.random.rand() <= self.epsilon:
             return random.randrange(self.config.n_action)
         else:
-            output = self.model(torch.tensor(state, dtype=torch.float))
+            state = torch.tensor(state, dtype=torch.float).to(self.config.device)
+            output = self.model(state)
             return output.argmax().item()
     
     # 리플레이 메모리에 St, At, Rt+1, St+1, Done 추가
@@ -59,30 +63,30 @@ class DQNAgent:
         mini_batch = random.sample(self.replay_memory, self.config.n_batch)
 
         # 랜덤 샘플링 된 데이터를 배열 형태로 정렬
-        states = np.zeros((self.config.n_batch, self.config.n_state))
-        next_states = np.zeros((self.config.n_batch, self.config.n_state))
-        actions, rewards, dones = [], [], []
+        mini_batch = np.array(mini_batch)
+        states = np.vstack(mini_batch[:, 0])
+        actions = list(mini_batch[:, 1])
+        rewards = list(mini_batch[:, 2])
+        next_states = list(mini_batch[:, 3])
+        dones = list(mini_batch[:, 4])
 
-        for i in range(len(mini_batch)):
-            states[i] = mini_batch[i][0]
-            actions.append(mini_batch[i][1])
-            rewards.append(mini_batch[i][2])
-            next_states[i] = mini_batch[i][3]
-            dones.append(mini_batch[i][4])
-        
-        values = self.model(torch.tensor(states, dtype=torch.float)) ## 정답
-        target = np.copy(values.detach().numpy()) ## Vt
-        next_values = self.target(torch.tensor(next_states, dtype=torch.float)).detach().numpy() ## Vt+1
+        states = torch.tensor(states, dtype=torch.float).to(self.config.device)
+        next_states = torch.tensor(next_states, dtype=torch.float).to(self.config.device)
+
+        values = self.model(states) ## 정답
+        target = np.copy(values.detach().cpu().numpy()) ## Vt
+        next_values = self.target(next_states).detach().cpu().numpy() ## Vt+1
 
         for i in range(len(target)):
             if dones[i]:
                 target[i][actions[i]] = rewards[i] # Vt = Rt+1
             else:
                 target[i][actions[i]] = rewards[i] + self.config.discount_factor * (np.amax(next_values[i])) # Vt = Rt+1 + rVt+1
+        target = torch.tensor(target, dtype=torch.float).to(self.config.device)
         
         # 학습
         self.optimizer.zero_grad()
-        loss = self.criterion(values, torch.tensor(target, dtype=torch.float))
+        loss = self.criterion(values, target)
         loss.backward()
         self.optimizer.step()
     
@@ -101,13 +105,6 @@ class DQNAgent:
 
 
 def train(config):
-    # env 초기화
-    env = gym.make('CartPole-v1')
-
-    # 환경
-    config.n_state = env.observation_space.shape[0]
-    config.n_action = env.action_space.n
-
     # agent 생성
     agent = DQNAgent(config)
 
@@ -166,14 +163,9 @@ def train(config):
 
 
 def run(config):
-    # env 초기화
-    env = gym.make('CartPole-v1')
-
-    # 환경
+   # 환경
     config.n_epoch = 10
     config.render = True
-    config.n_state = env.observation_space.shape[0]
-    config.n_action = env.action_space.n
     config.epsilon = 0
 
     # agent 생성
@@ -232,11 +224,24 @@ if __name__ == "__main__":
 
     if not os.path.exists("save"):
         os.makedirs("save")
+    
+    # cuda or cpu
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # pytorch seed 초기화
+    seed = 1029
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+
+    # env 초기화
+    env = gym.make('CartPole-v1')
 
     config = CartpoleConfig({
-        "n_epoch": 300,
-        "n_state": 0,
-        "n_action": 0,
+        "device": device,
+        "n_epoch": 3000,
+        "n_state": env.observation_space.shape[0],
+        "n_action": env.action_space.n,
         "n_batch": 64,
         "n_replay_memory": 2000,
         "n_train_start": 1000,

@@ -11,9 +11,14 @@ class CartpoleQ(nn.Module):
     def __init__(self, n_state, n_action):
         super(CartpoleQ, self).__init__()
 
-        self.layer1 = nn.Linear(n_state, 256)
-        self.layer2 = nn.Linear(256, 256)
-        self.output = nn.Linear(256, n_action)
+        self.layer1 = self.linear(n_state, 256)
+        self.layer2 = self.linear(256, 256)
+        self.output = self.linear(256, n_action)
+    
+    def linear(self, n_input, n_output):
+        layer = nn.Linear(n_input, n_output)
+        nn.init.xavier_uniform_(layer.weight)
+        return layer
     
     def forward(self, state):
         output = F.relu(self.layer1(state))
@@ -29,9 +34,14 @@ class CartpoleP(nn.Module):
     def __init__(self, n_state, n_action):
         super(CartpoleP, self).__init__()
         
-        self.layer1 = nn.Linear(n_state, 256)
-        self.layer2 = nn.Linear(256, 256)
-        self.output = nn.Linear(256, n_action)
+        self.layer1 = self.linear(n_state, 256)
+        self.layer2 = self.linear(256, 256)
+        self.output = self.linear(256, n_action)
+
+    def linear(self, n_input, n_output):
+        layer = nn.Linear(n_input, n_output)
+        # nn.init.xavier_uniform_(layer.weight)
+        return layer
     
     def forward(self, state):
         output = F.relu(self.layer1(state))
