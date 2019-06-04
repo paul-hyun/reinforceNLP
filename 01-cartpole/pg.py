@@ -15,7 +15,7 @@ from model import CartpoleP, CartpoleConfig
 
 
 # 참고: https://github.com/rlcode/reinforcement-learning-kr/blob/master/1-grid-world/7-reinforce/reinforce_agent.py
-#      https://github.com/Finspire13/pytorch-policy-gradient-example/blob/master/pg.py
+
 
 """
 Policy Gradient Agent
@@ -30,6 +30,7 @@ class PGAgent:
 
         # train model, target model 생성
         self.model = CartpoleP(config.n_state, config.n_action)
+        self.model.to(self.config.device)
         # optimizer
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate)
     
@@ -38,14 +39,29 @@ class PGAgent:
         if np.random.rand() <= self.epsilon:
             return random.randrange(self.config.n_action)
         else:
-            output = self.model(torch.tensor(state, dtype=torch.float))
-            output = output.detach().numpy()[0]
+            state = torch.tensor(state, dtype=torch.float).to(self.config.device)
+            output = self.model(state)
+            output = output.detach().cpu().numpy()[0]
             return np.random.choice(self.config.n_action, 1, p=output)[0]
     
     # 히스토리 추가
-    def append_history(self, state, action, reward):
-        self.history_memory.append((state, action, reward))
+    def append_history(self, state, action, reward, next_state, done):
+        self.history_memory.append((state, action, reward, next_state, done))
     
+    # 리턴값 계산
+    def get_returns(self, rewards, dones):
+        returns = np.zeros_like(rewards)
+        R = 0
+        for i in reversed(range(0, len(rewards))):
+            if dones[i]:
+                R = rewards[i]
+            else:
+                R = rewards[i] + self.config.discount_factor * R
+            returns[i] = R
+        returns -= np.mean(returns)
+        returns /= (np.std(returns) + 1.e-10)
+        return returns
+
     # 학습
     def train(self):
         # 학습이 계속 될 수 록 탐험 학률을 줄여 줌
@@ -53,29 +69,24 @@ class PGAgent:
             self.epsilon *= self.config.epsilon_decay
         
         # 히스토리를 배열 형태로 정렬
-        states = np.zeros((len(self.history_memory), self.config.n_state))
-        actions, rewards = [], []
+        history_memory = np.array(self.history_memory)
+        states = np.vstack(history_memory[:, 0])
+        actions = list(history_memory[:, 1])
+        rewards = list(history_memory[:, 2])
+        next_states = list(history_memory[:, 3])
+        dones = list(history_memory[:, 4])
 
-        for i in range(len(self.history_memory)):
-            states[i] = self.history_memory[i][0]
-            # action은 onehot으로 저장
-            action = np.zeros(self.config.n_action)
-            action[self.history_memory[i][1]] = 1
-            actions.append(action)
-            rewards.append(self.history_memory[i][2])
+        # 리턴값 계산
+        returns = self.get_returns(rewards, dones)
 
-        # discount reward 계산
-        discounted_rewards = np.zeros_like(rewards)
-        R = 0
-        for i in reversed(range(0, len(rewards))):
-            R = rewards[i] + self.config.discount_factor * R
-            discounted_rewards[i] = R
-        discounted_rewards -= np.mean(discounted_rewards)
-        discounted_rewards /= np.std(discounted_rewards)
+        states = torch.tensor(states, dtype=torch.float).to(self.config.device)
+        actions = torch.tensor(actions, dtype=torch.long).to(self.config.device).view(-1, 1)
+        actions_onehot = torch.FloatTensor(len(actions), config.n_action).to(self.config.device).zero_().scatter_(1, actions, 1)
+        returns = torch.tensor(returns, dtype=torch.float).to(self.config.device)
 
-        prob = self.model(torch.tensor(states, dtype=torch.float))
-        action_prob = torch.sum(torch.tensor(actions, dtype=torch.float) * prob, dim=1) ## π(St,At): 액션을 수행할 확률
-        cross_entropy = torch.log(action_prob + 1.e-10) * torch.tensor(discounted_rewards, dtype=torch.float) ## log(π(St,At)) * Gt, 1.e-10는 0 방지
+        prob = self.model(states)
+        action_prob = torch.sum(actions_onehot * prob, dim=1) ## π(St,At): 액션을 수행할 확률
+        cross_entropy = torch.log(action_prob + 1.e-10) * returns ## log(π(St,At)) * Gt, 1.e-10는 0 방지
         loss = -torch.mean(cross_entropy) ## 음수를 취하여 경사 하강법으로 학습 (sum 보다 mean이 더 학습이 잘 됨)
 
         # 학습
@@ -96,19 +107,6 @@ class PGAgent:
 
 
 def train(config):
-    # pytorch seed 초기화
-    seed = 1029
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-
-    # env 초기화
-    env = gym.make('CartPole-v1')
-
-    # 환경
-    config.n_state = env.observation_space.shape[0]
-    config.n_action = env.action_space.n
-
     # agent 생성
     agent = PGAgent(config)
 
@@ -137,7 +135,7 @@ def train(config):
             reward = reward if not done or score == 499 else -100
 
             # St, At, Rt+1: 히스토리 저장
-            agent.append_history(state, action, reward)
+            agent.append_history(state, action, reward, next_state, done)
 
             if reward != -100:
                 score += reward
@@ -153,7 +151,7 @@ def train(config):
                 scores.append(score)
 
                 # 이전 5개 에피소드의 점수 평균이 500이면 학습 중단
-                if np.mean(scores[-min(5, len(scores)):]) > 499:
+                if np.mean(scores[-min(7, len(scores)):]) > 499:
                     agent.save(config.save_file)
                     sys.exit()
     # env 종료
@@ -165,14 +163,9 @@ def train(config):
 
 
 def run(config):
-    # env 초기화
-    env = gym.make('CartPole-v1')
-
     # 환경
     config.n_epoch = 10
     config.render = True
-    config.n_state = env.observation_space.shape[0]
-    config.n_action = env.action_space.n
     config.epsilon = 0
 
     # agent 생성
@@ -232,13 +225,24 @@ if __name__ == "__main__":
     if not os.path.exists("save"):
         os.makedirs("save")
 
+    # cuda or cpu
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # pytorch seed 초기화
+    seed = 1029
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+
+    # env 초기화
+    env = gym.make('CartPole-v1')
+
     config = CartpoleConfig({
-        "n_epoch": 500,
-        "n_state": 0,
-        "n_action": 0,
+        "device": device,
+        "n_epoch": 3000,
+        "n_state": env.observation_space.shape[0],
+        "n_action": env.action_space.n,
         "n_batch": 64,
-        "n_replay_memory": 2000,
-        "n_train_start": 1000,
         "learning_rate": 0.01,
         "discount_factor": 0.99,
         "epsilon": 1.0,
