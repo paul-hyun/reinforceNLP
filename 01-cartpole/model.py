@@ -42,7 +42,9 @@ class PolicyNet(nn.Module):
     
     def forward(self, state):
         output = F.relu(self.layer1(state))
-        output = F.softmax(self.output(output), dim=1)
+        output = self.output(output)
+        output = output + 1.e-7 # softmax 오류 방지
+        output = F.softmax(output, dim=1)
         return output
 
 

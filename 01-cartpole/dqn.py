@@ -134,7 +134,7 @@ def train(env, config):
                 losses = np.array(agent.losses)
                 agent.losses.clear()
                 ValueNet_loss = 0 if len(losses) == 0 else np.sum(losses) / len(losses)
-                print("episode: %4d,    score: %3d,    ValueNet_loss: %3.2f" % (e, score, ValueNet_loss))
+                print("episode: %4d,    score: %3d,    loss: %3.2f" % (e, score, ValueNet_loss))
                 scores.append(score)
                 episodes.append(e)
 
