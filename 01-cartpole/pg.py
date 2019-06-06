@@ -137,7 +137,7 @@ def train(env, config):
                 losses = np.array(agent.losses)
                 agent.losses.clear()
                 actor_loss = np.sum(losses) / len(losses)
-                # print("episode: %4d,    score: %3d,    loss: %3.2f" % (e, score, actor_loss))
+                print("episode: %4d,    score: %3d,    loss: %3.2f" % (e, score, actor_loss))
                 scores.append(score)
                 episodes.append(e)
 
@@ -182,11 +182,7 @@ if __name__ == "__main__":
         "n_success": 5, # 500점을 몇번 연속하면 학습을 종료할 것인가 기준
     })
 
-    count = 0
-    for i in range(100):
-        success, e = train(env, config)
-        if success:
-            count += 1
-        print("try: %4d,    sussess: %3d,    epoch: %3d" % (i + 1, count, e))
+    success, e = train(env, config)
+    print("sussess: %r,    epoch: %3d" % (success, e))
     
     env.close()
