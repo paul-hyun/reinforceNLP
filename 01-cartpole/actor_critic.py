@@ -142,7 +142,7 @@ def train(env, config):
                 agent.losses.clear()
                 actor_loss = np.sum(losses[:, 0]) / len(losses)
                 critic_loss = np.sum(losses[:, 1]) / len(losses)
-                # print("episode: %4d,    score: %3d,    actor_loss: %3.2f,    critic_loss: %3.2f" % (e, score, actor_loss, critic_loss))
+                print("episode: %4d,    score: %3d,    actor_loss: %3.2f,    critic_loss: %3.2f" % (e, score, actor_loss, critic_loss))
                 scores.append(score)
                 episodes.append(e)
 
