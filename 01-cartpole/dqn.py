@@ -70,12 +70,12 @@ class DQNAgent:
                 targets[i][actions[i]] = rewards[i] + self.config.discount_factor * (np.amax(next_values[i])) # Vt = Rt+1 + rVt+1
 
         targets = torch.tensor(targets, dtype=torch.float).to(device)
-        ValueNet_loss = self.train_ValueNet(states, targets)
+        ValueNet_loss = self.train_value(states, targets)
 
         self.losses.append(ValueNet_loss)
     
     # 가치신경망을 업데이트하는 함수
-    def train_ValueNet(self, state, target):
+    def train_value(self, state, target):
         value = self.model(state)
         ValueNet_loss = torch.mean(torch.pow(target - value, 2))
 
