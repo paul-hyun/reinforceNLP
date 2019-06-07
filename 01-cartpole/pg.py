@@ -59,6 +59,7 @@ class PGAgent:
     def train_model(self, done):
         # 히스토리를 배열 형태로 정렬
         replay_memory = np.array(self.replay_memory)
+        self.replay_memory.clear()
         states = np.vstack(replay_memory[:, 0])
         actions = list(replay_memory[:, 1])
         rewards = list(replay_memory[:, 2])
@@ -137,7 +138,7 @@ def train(env, config):
                 losses = np.array(agent.losses)
                 agent.losses.clear()
                 loss = np.sum(losses) / len(losses)
-                print("episode: %4d,    score: %3d,    loss: %3.2f" % (e, score, loss))
+                # print("episode: %4d,    score: %3d,    loss: %3.2f" % (e, score, loss))
                 scores.append(score)
                 episodes.append(e)
 
