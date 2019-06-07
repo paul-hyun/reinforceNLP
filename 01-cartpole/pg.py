@@ -70,22 +70,22 @@ class PGAgent:
         states = torch.tensor(states, dtype=torch.float).to(self.config.device)
         actions = torch.tensor(actions, dtype=torch.float).to(self.config.device)
         returns = torch.tensor(returns, dtype=torch.float).to(self.config.device)
-        actor_loss = self.train_policy(states, actions, returns)
+        loss = self.train_policy(states, actions, returns)
 
-        self.losses.append(actor_loss)
+        self.losses.append(loss)
     
     # 정책신경망을 업데이트하는 함수
     def train_policy(self, states, actions, returns):
         policy = self.model(states)
         action_prob = torch.sum(actions * policy, dim=1)
         cross_entropy = torch.log(action_prob + 1.e-7) * returns
-        actor_loss = -torch.mean(cross_entropy)
+        loss = -torch.mean(cross_entropy)
 
         self.model_optimizer.zero_grad()
-        actor_loss.backward()
+        loss.backward()
         self.model_optimizer.step()
 
-        return actor_loss.item()
+        return loss.item()
 
     # model의 weight를 파일로 저장
     def save(self):
@@ -136,8 +136,8 @@ def train(env, config):
                 # 에피소드마다 학습 결과 출력
                 losses = np.array(agent.losses)
                 agent.losses.clear()
-                actor_loss = np.sum(losses) / len(losses)
-                print("episode: %4d,    score: %3d,    loss: %3.2f" % (e, score, actor_loss))
+                loss = np.sum(losses) / len(losses)
+                print("episode: %4d,    score: %3d,    loss: %3.2f" % (e, score, loss))
                 scores.append(score)
                 episodes.append(e)
 

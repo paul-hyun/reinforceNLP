@@ -59,10 +59,12 @@ class A2CAgent:
             advantage = [(reward + self.config.discount_factor * next_value) - value]
             target = [reward + self.config.discount_factor * next_value]
 
+        # 정책신경망 학습
         act = torch.tensor(act, dtype=torch.float).to(device)
         advantage = torch.tensor(advantage, dtype=torch.float).to(device)
         actor_loss = self.train_actor(state, act, advantage)
 
+        # 가치신경망 학습
         target = torch.tensor(target, dtype=torch.float).to(device)
         critic_loss = self.train_critic(state, target)
 

@@ -70,20 +70,20 @@ class DQNAgent:
                 targets[i][actions[i]] = rewards[i] + self.config.discount_factor * (np.amax(next_values[i])) # Vt = Rt+1 + rVt+1
 
         targets = torch.tensor(targets, dtype=torch.float).to(device)
-        ValueNet_loss = self.train_value(states, targets)
+        loss = self.train_value(states, targets)
 
-        self.losses.append(ValueNet_loss)
+        self.losses.append(loss)
     
     # 가치신경망을 업데이트하는 함수
-    def train_value(self, state, target):
-        value = self.model(state)
-        ValueNet_loss = torch.mean(torch.pow(target - value, 2))
+    def train_value(self, states, targets):
+        values = self.model(states)
+        loss = torch.mean(torch.pow(targets - values, 2))
 
         self.model_optimizer.zero_grad()
-        ValueNet_loss.backward()
+        loss.backward()
         self.model_optimizer.step()
 
-        return ValueNet_loss.item()
+        return loss.item()
 
     # model의 weight를 파일로 저장
     def save(self):
@@ -133,8 +133,8 @@ def train(env, config):
                 # 에피소드마다 학습 결과 출력
                 losses = np.array(agent.losses)
                 agent.losses.clear()
-                ValueNet_loss = 0 if len(losses) == 0 else np.sum(losses) / len(losses)
-                print("episode: %4d,    score: %3d,    loss: %3.2f" % (e, score, ValueNet_loss))
+                loss = 0 if len(losses) == 0 else np.sum(losses) / len(losses)
+                print("episode: %4d,    score: %3d,    loss: %3.2f" % (e, score, loss))
                 scores.append(score)
                 episodes.append(e)
 
