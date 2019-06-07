@@ -180,7 +180,7 @@ if __name__ == "__main__":
         "n_action": env.action_space.n, # 액션 개수
         "n_replay_memory": 2000, # 리플레이 메모리 최대 크기
         "actor_lr": 0.01, # 액터 학습률
-        "critic_lr": 0.02, # 크리틱 학습률
+        "critic_lr": 0.01, # 크리틱 학습률
         "discount_factor": 0.99, # 감가율
         "fail_reward": -100, # 중간에 실패할 경우 보상
         "render": False, # 화면 출력 여부
