@@ -70,12 +70,12 @@ class PGAgent:
         states = torch.tensor(states, dtype=torch.float).to(self.config.device)
         actions = torch.tensor(actions, dtype=torch.float).to(self.config.device)
         returns = torch.tensor(returns, dtype=torch.float).to(self.config.device)
-        actor_loss = self.train_actor(states, actions, returns)
+        actor_loss = self.train_policy(states, actions, returns)
 
         self.losses.append(actor_loss)
     
     # 정책신경망을 업데이트하는 함수
-    def train_actor(self, states, actions, returns):
+    def train_policy(self, states, actions, returns):
         policy = self.model(states)
         action_prob = torch.sum(actions * policy, dim=1)
         cross_entropy = torch.log(action_prob + 1.e-7) * returns
@@ -142,7 +142,7 @@ def train(env, config):
                 episodes.append(e)
 
                 # 이전 500점이 n_success 이상 이면 학습 중단
-                if np.mean(scores[-min(config.n_success, len(scores)):]) > 490:
+                if np.mean(scores[-min(config.n_success, len(scores)):]) >= 500:
                     agent.save()
                     agent.close()
                     return True, e
