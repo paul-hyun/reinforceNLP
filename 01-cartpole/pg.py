@@ -138,7 +138,7 @@ def train(env, config):
                 losses = np.array(agent.losses)
                 agent.losses.clear()
                 loss = np.sum(losses) / len(losses)
-                # print("episode: %4d,    score: %3d,    loss: %3.2f" % (e, score, loss))
+                print("episode: %4d,    score: %3d,    loss: %3.2f" % (e, score, loss))
                 scores.append(score)
                 episodes.append(e)
 
