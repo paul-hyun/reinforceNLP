@@ -44,7 +44,7 @@ class PGAgent:
         self.replay_memory.append((state, act, reward, next_state))
 
     # 리턴값 계산
-    def get_returns(self, rewards, done):
+    def get_returns(self, rewards):
         returns = np.zeros_like(rewards)
         R = 0
         for i in reversed(range(0, len(rewards))):
@@ -56,7 +56,7 @@ class PGAgent:
         return returns
 
     # 각 타임스텝마다 정책신경망과 가치신경망을 업데이트
-    def train_model(self, done):
+    def train_model(self):
         # 히스토리를 배열 형태로 정렬
         replay_memory = np.array(self.replay_memory)
         self.replay_memory.clear()
@@ -66,7 +66,7 @@ class PGAgent:
         next_states = list(replay_memory[:, 3])
 
         # 리턴값 계산
-        returns = self.get_returns(rewards, done)
+        returns = self.get_returns(rewards)
 
         states = torch.tensor(states, dtype=torch.float).to(self.config.device)
         actions = torch.tensor(actions, dtype=torch.float).to(self.config.device)
@@ -132,7 +132,7 @@ def train(env, config):
 
             if done:
                 # 에피소드 완료 후 학습
-                agent.train_model(done)
+                agent.train_model()
 
                 # 에피소드마다 학습 결과 출력
                 losses = np.array(agent.losses)
