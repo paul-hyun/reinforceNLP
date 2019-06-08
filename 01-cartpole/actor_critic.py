@@ -23,6 +23,9 @@ class A2CAgent:
         self.config = config
         self.losses = []
 
+        # replay memory
+        self.replay_memory = deque(maxlen=self.config.n_replay_memory)
+
         # 정책신경망 생성
         self.actor = PolicyNet(self.config.n_state, self.config.n_action)
         self.actor.to(device)
@@ -40,41 +43,56 @@ class A2CAgent:
         policy = policy.detach().cpu().numpy()[0]
         return np.random.choice(self.config.n_action, 1, p=policy)[0]
 
+    # 히스토리 추가
+    def append_replay(self, state, action, reward, next_state):
+        act = np.zeros(self.config.n_action)
+        act[action] = 1
+        self.replay_memory.append((state, act, reward, next_state))
+
+    # 리턴값 계산
+    def get_returns(self, rewards, done, next_value):
+        returns = np.zeros_like(rewards)
+        R = 0 if done else next_value
+        for i in reversed(range(0, len(rewards))):
+            R = rewards[i] + self.config.discount_factor * R
+            returns[i] = R
+        return returns
+
     # 각 타임스텝마다 정책신경망과 가치신경망을 업데이트
-    def train_model(self, state, action, reward, next_state, done):
-        state = torch.tensor(state, dtype=torch.float).to(device)
-        next_state = torch.tensor(next_state, dtype=torch.float).to(device)
-    
-        value = self.critic(state).item()
-        next_value = self.critic(next_state).item()
+    def train_model(self, done):
+        # 히스토리를 배열 형태로 정렬
+        replay_memory = np.array(self.replay_memory)
+        self.replay_memory.clear()
+        states = np.vstack(replay_memory[:, 0])
+        actions = list(replay_memory[:, 1])
+        rewards = list(replay_memory[:, 2])
+        next_states = list(replay_memory[:, 3])
 
-        act = np.zeros([1, self.config.n_action])
-        act[0][action] = 1
+        states = torch.tensor(states, dtype=torch.float).to(self.config.device)
+        next_states = torch.tensor(next_states, dtype=torch.float).to(self.config.device)
 
-        # 벨만 기대 방정식를 이용한 어드벤티지와 업데이트 타깃
-        if done:
-            advantage = [reward - value]
-            target = [reward]
-        else:
-            advantage = [(reward + self.config.discount_factor * next_value) - value]
-            target = [reward + self.config.discount_factor * next_value]
+        next_values = self.critic(next_states).view(-1).detach().cpu().numpy()
 
-        # 정책신경망 학습
-        act = torch.tensor(act, dtype=torch.float).to(device)
-        advantage = torch.tensor(advantage, dtype=torch.float).to(device)
-        actor_loss = self.train_actor(state, act, advantage)
+        # 리턴값 계산
+        returns = self.get_returns(rewards, done, next_values[-1])
+
+        actions = torch.tensor(actions, dtype=torch.float).to(self.config.device)
+        returns = torch.tensor(returns, dtype=torch.float).to(self.config.device)
+        values = self.critic(states)
 
         # 가치신경망 학습
-        target = torch.tensor(target, dtype=torch.float).to(device)
-        critic_loss = self.train_critic(state, target)
+        critic_loss = self.train_critic(values, returns)
+
+        # 정책신경망 학습
+        actor_loss = self.train_actor(states, actions, returns - values)
 
         self.losses.append((actor_loss, critic_loss))
     
     # 정책신경망을 업데이트하는 함수
-    def train_actor(self, state, action, advantage):
-        policy = self.actor(state)
-        action_prob = torch.sum(action * policy, dim=1)
-        cross_entropy = torch.log(action_prob + 1.e-7) * advantage
+    def train_actor(self, states, actions, advantages):
+        policy = self.actor(states)
+        action_prob = torch.sum(actions * policy, dim=1)
+        cross_entropy = torch.log(action_prob + 1.e-7) * advantages.detach()
         actor_loss = -torch.mean(cross_entropy)
 
         self.actor_optimizer.zero_grad()
@@ -83,10 +101,9 @@ class A2CAgent:
 
         return actor_loss.item()
     
-    # 가치신경망을 업데이트하는 함수
-    def train_critic(self, state, target):
-        value = self.critic(state)
-        critic_loss = torch.mean(torch.pow(target - value, 2))
+    # 가치신경망을 업데이트하는 states
+    def train_critic(self, values, targets):
+        critic_loss = torch.mean(torch.pow(targets - values, 2))
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
@@ -132,7 +149,10 @@ def train(env, config):
             # 에피소드가 중간에 끝나면 -100 보상
             reward = reward if not done or score == 499 else config.fail_reward
 
-            agent.train_model(state, action, reward, next_state, done)
+            # 리플레이 메모리에 step 저장
+            agent.append_replay(state, action, reward, next_state)
+            if done or config.n_train_step <= len(agent.replay_memory):
+                agent.train_model(done)
 
             if 0 < reward:
                 score += reward
@@ -181,6 +201,7 @@ if __name__ == "__main__":
         "n_state": env.observation_space.shape[0], # 상태 개수
         "n_action": env.action_space.n, # 액션 개수
         "n_replay_memory": 2000, # 리플레이 메모리 최대 크기
+        "n_train_step": 32, # 리플레이 메모리 학습 단위
         "actor_lr": 0.01, # 액터 학습률
         "critic_lr": 0.01, # 크리틱 학습률
         "discount_factor": 0.99, # 감가율
