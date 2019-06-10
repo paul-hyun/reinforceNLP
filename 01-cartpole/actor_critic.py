@@ -21,7 +21,6 @@ from model import ValueNet, PolicyNet, Config
 class A2CAgent:
     def __init__(self, config):
         self.config = config
-        self.losses = []
 
         # replay memory
         self.replay_memory = deque(maxlen=self.config.n_replay_memory)
@@ -78,15 +77,14 @@ class A2CAgent:
 
         actions = torch.tensor(actions, dtype=torch.float).to(self.config.device)
         returns = torch.tensor(returns, dtype=torch.float).to(self.config.device)
-        values = self.critic(states)
+        values = self.critic(states).view(-1)
 
         # 가치신경망 학습
         critic_loss = self.train_critic(values, returns)
-
         # 정책신경망 학습
         actor_loss = self.train_actor(states, actions, returns - values)
 
-        self.losses.append((actor_loss, critic_loss))
+        return actor_loss, critic_loss
     
     # 정책신경망을 업데이트하는 함수
     def train_actor(self, states, actions, advantages):
@@ -136,6 +134,7 @@ def train(env, config):
     for e in range(config.n_epoch):
         done = False
         score = 0
+        losses = []
         state = env.reset()
         state = np.reshape(state, [1, config.n_state])
 
@@ -152,7 +151,8 @@ def train(env, config):
             # 리플레이 메모리에 step 저장
             agent.append_replay(state, action, reward, next_state)
             if done or config.n_train_step <= len(agent.replay_memory):
-                agent.train_model(done)
+                actor_loss, critic_loss = agent.train_model(done)
+                losses.append((actor_loss, critic_loss))
 
             if 0 < reward:
                 score += reward
@@ -160,8 +160,7 @@ def train(env, config):
 
             if done:
                 # 에피소드마다 학습 결과 출력
-                losses = np.array(agent.losses)
-                agent.losses.clear()
+                losses = np.array(losses)
                 actor_loss = np.sum(losses[:, 0]) / len(losses)
                 critic_loss = np.sum(losses[:, 1]) / len(losses)
                 print("episode: %4d,    score: %3d,    actor_loss: %3.2f,    critic_loss: %3.2f" % (e, score, actor_loss, critic_loss))

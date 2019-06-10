@@ -20,7 +20,6 @@ from model import PolicyNet, Config
 class PGAgent:
     def __init__(self, config):
         self.config = config
-        self.losses = []
 
         # replay memory
         self.replay_memory = deque(maxlen=self.config.n_replay_memory)
@@ -73,7 +72,7 @@ class PGAgent:
         returns = torch.tensor(returns, dtype=torch.float).to(self.config.device)
         loss = self.train_policy(states, actions, returns)
 
-        self.losses.append(loss)
+        return loss
     
     # 정책신경망을 업데이트하는 함수
     def train_policy(self, states, actions, returns):
@@ -132,12 +131,9 @@ def train(env, config):
 
             if done:
                 # 에피소드 완료 후 학습
-                agent.train_model()
+                loss = agent.train_model()
 
                 # 에피소드마다 학습 결과 출력
-                losses = np.array(agent.losses)
-                agent.losses.clear()
-                loss = np.sum(losses) / len(losses)
                 print("episode: %4d,    score: %3d,    loss: %3.2f" % (e, score, loss))
                 scores.append(score)
                 episodes.append(e)

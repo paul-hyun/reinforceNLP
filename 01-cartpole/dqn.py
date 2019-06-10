@@ -20,7 +20,6 @@ class DQNAgent:
     def __init__(self, config):
         self.config = config
         self.epsilon = config.epsilon
-        self.losses = []
 
         # replay memory
         self.replay_memory = deque(maxlen=self.config.n_replay_memory)
@@ -72,7 +71,7 @@ class DQNAgent:
         targets = torch.tensor(targets, dtype=torch.float).to(device)
         loss = self.train_value(states, targets)
 
-        self.losses.append(loss)
+        return loss
     
     # 가치신경망을 업데이트하는 함수
     def train_value(self, states, targets):
@@ -107,6 +106,7 @@ def train(env, config):
     for e in range(config.n_epoch):
         done = False
         score = 0
+        losses = []
         state = env.reset()
         state = np.reshape(state, [1, config.n_state])
 
@@ -123,7 +123,8 @@ def train(env, config):
             # 리플레이 메모리에 step 저장
             agent.append_replay(state, action, reward, next_state, done)
             if config.n_train_start < len(agent.replay_memory):
-                agent.train_model()
+                loss = agent.train_model()
+                losses.append(loss)
 
             if 0 < reward:
                 score += reward
@@ -131,8 +132,6 @@ def train(env, config):
 
             if done:
                 # 에피소드마다 학습 결과 출력
-                losses = np.array(agent.losses)
-                agent.losses.clear()
                 loss = 0 if len(losses) == 0 else np.sum(losses) / len(losses)
                 print("episode: %4d,    score: %3d,    loss: %3.2f" % (e, score, loss))
                 scores.append(score)
