@@ -50,7 +50,7 @@ class A2CAgent:
 
     # 리턴값 계산
     def get_returns(self, rewards, done, next_value):
-        returns = np.zeros_like(rewards)
+        returns = torch.zeros(len(rewards), dtype=torch.float).to(self.config.device)
         R = 0 if done else next_value
         for i in reversed(range(0, len(rewards))):
             R = rewards[i] + self.config.discount_factor * R
@@ -68,15 +68,14 @@ class A2CAgent:
         next_states = list(replay_memory[:, 3])
 
         states = torch.tensor(states, dtype=torch.float).to(self.config.device)
+        actions = torch.tensor(actions, dtype=torch.float).to(self.config.device)
         next_states = torch.tensor(next_states, dtype=torch.float).to(self.config.device)
 
-        next_values = self.critic(next_states).view(-1).detach().cpu().numpy()
+        next_values = self.critic(next_states).view(-1)
 
         # 리턴값 계산
         returns = self.get_returns(rewards, done, next_values[-1])
 
-        actions = torch.tensor(actions, dtype=torch.float).to(self.config.device)
-        returns = torch.tensor(returns, dtype=torch.float).to(self.config.device)
         values = self.critic(states).view(-1)
 
         # 가치신경망 학습

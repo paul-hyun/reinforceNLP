@@ -44,14 +44,14 @@ class PGAgent:
 
     # 리턴값 계산
     def get_returns(self, rewards):
-        returns = np.zeros_like(rewards)
+        returns = torch.zeros(len(rewards), dtype=torch.float).to(self.config.device)
         R = 0
         for i in reversed(range(0, len(rewards))):
             R = rewards[i] + self.config.discount_factor * R
             returns[i] = R
         if 1 < len(returns):
-            returns -= np.mean(returns)
-            returns /= (np.std(returns) + 1.e-7)
+            returns -= torch.mean(returns)
+            returns /= (torch.std(returns) + 1.e-7)
         return returns
 
     # 각 타임스텝마다 정책신경망과 가치신경망을 업데이트
@@ -64,12 +64,12 @@ class PGAgent:
         rewards = list(replay_memory[:, 2])
         next_states = list(replay_memory[:, 3])
 
+        states = torch.tensor(states, dtype=torch.float).to(self.config.device)
+        actions = torch.tensor(actions, dtype=torch.float).to(self.config.device)
+        
         # 리턴값 계산
         returns = self.get_returns(rewards)
 
-        states = torch.tensor(states, dtype=torch.float).to(self.config.device)
-        actions = torch.tensor(actions, dtype=torch.float).to(self.config.device)
-        returns = torch.tensor(returns, dtype=torch.float).to(self.config.device)
         loss = self.train_policy(states, actions, returns)
 
         return loss

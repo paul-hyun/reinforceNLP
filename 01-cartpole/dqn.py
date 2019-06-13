@@ -59,16 +59,15 @@ class DQNAgent:
         states = torch.tensor(states, dtype=torch.float).to(device)
         next_states = torch.tensor(next_states, dtype=torch.float).to(device)
     
-        targets = self.model(states).detach().cpu().numpy()
-        next_values = self.model(next_states).detach().cpu().numpy()
+        targets = self.model(states)
+        next_values = self.model(next_states)
 
         for i in range(len(targets)):
             if dones[i]:
                 targets[i][actions[i]] = rewards[i] # Vt = Rt+1
             else:
-                targets[i][actions[i]] = rewards[i] + self.config.discount_factor * (np.amax(next_values[i])) # Vt = Rt+1 + rVt+1
+                targets[i][actions[i]] = rewards[i] + self.config.discount_factor * (torch.max(next_values[i])) # Vt = Rt+1 + rVt+1
 
-        targets = torch.tensor(targets, dtype=torch.float).to(device)
         loss = self.train_value(states, targets)
 
         return loss
