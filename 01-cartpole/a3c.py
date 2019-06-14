@@ -19,6 +19,9 @@ import torch.nn.functional as F
 from model import ValueNet, PolicyNet, Config
 
 
+# 참조: https://github.com/rlcode/reinforcement-learning-kr/blob/master/2-cartpole/2-actor-critic/cartpole_a2c.py
+
+
 # A3C 글로벌신경망
 class A3CGlobal:
     def __init__(self, config):
