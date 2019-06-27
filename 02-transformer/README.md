@@ -2,13 +2,9 @@
 Transformer 네트워크
 
 ## prepare data
+- 참고: https://github.com/jadore801120/attention-is-all-you-need-pytorch#usage
 - mkdir data
-- wget https://raw.githubusercontent.com/haven-jeon/ko_en_neural_machine_translation/master/korean_parallel_corpora/korean-english-v1/korean-english-park.train.ko
-- wget https://raw.githubusercontent.com/haven-jeon/ko_en_neural_machine_translation/master/korean_parallel_corpora/korean-english-v1/korean-english-park.train.en
-- wget https://raw.githubusercontent.com/haven-jeon/ko_en_neural_machine_translation/master/korean_parallel_corpora/korean-english-v1/korean-english-park.dev.ko
-- wget https://raw.githubusercontent.com/haven-jeon/ko_en_neural_machine_translation/master/korean_parallel_corpora/korean-english-v1/korean-english-park.dev.en
-- wget https://raw.githubusercontent.com/haven-jeon/ko_en_neural_machine_translation/master/korean_parallel_corpora/korean-english-v1/korean-english-park.test.ko
-- wget https://raw.githubusercontent.com/haven-jeon/ko_en_neural_machine_translation/master/korean_parallel_corpora/korean-english-v1/korean-english-park.test.en
+- 
 
 
 ## make vocab (en)
