@@ -1,4 +1,6 @@
 .vscode
 */__pycache__
 */save
+*/data
 */nohup.out
+*/*.zip
