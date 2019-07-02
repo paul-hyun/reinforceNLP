@@ -1,3 +1,4 @@
+import config
 import data
 import transformer
 
@@ -10,14 +11,9 @@ import torch.utils.data
 # 참고: https://github.com/jadore801120/attention-is-all-you-need-pytorch
 
 
-class Config(dict): 
-    __getattr__ = dict.__getitem__
-    __setattr__ = dict.__setitem__
-
-
 def build_loader(enc_inputs, dec_inputs, device, batch_size):
-    enc_inputs = torch.tensor(enc_inputs, dtype=torch.long).to(device)
-    dec_inputs = torch.tensor(dec_inputs, dtype=torch.long).to(device)
+    enc_inputs = torch.LongTensor(enc_inputs).to(device)
+    dec_inputs = torch.LongTensor(dec_inputs).to(device)
     dataset = torch.utils.data.TensorDataset(enc_inputs, dec_inputs)
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
     return loader
@@ -57,7 +53,7 @@ def train_model(config, vocab_enc, vocab_dec, train_loader, valid_loader, test_l
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
 
-    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=vocab_dec["<pad>"], reduction='sum')
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.i_pad, reduction='sum')
     # 기본 Adam Optimizer로는 학습이 안됨
     # optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     optimizer = transformer.ScheduledOptim(
@@ -123,29 +119,22 @@ def train_model(config, vocab_enc, vocab_dec, train_loader, valid_loader, test_l
 
 
 if __name__ == "__main__":
+    config = config.Config.load("config.json")
+
     vocab_en = data.load_vocab("data/pickle.vocab.en")
     train_en, valid_en, test_en = data.load_data("data/pickle.data.en")
     vocab_de = data.load_vocab("data/pickle.vocab.de")
     train_de, valid_de, test_de = data.load_data("data/pickle.data.de")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    config = Config({
-        "device": device, # cpu 또는 gpu 사용
-        "n_enc_vocab": len(vocab_en), # encoder vocab size
-        "n_dec_vocab": len(vocab_de), # decoder vocab size
-        "n_enc_seq": len(train_en[0]), # encode sequence length
-        "n_dec_seq": len(train_de[0]), # decode sequence length
-        "n_layer": 6, # encode / decode layer 수
-        "d_embed": 300,  # embedding dimension
-        "i_pad": vocab_en["<pad>"], # pad vocab index
-        "d_ff": 64, # FeedForward dimension
-        "n_heads": 4, # number of heads in Multi-Head Attention
-        "d_k": 32, # dimension of K(=Q)
-        "d_v": 32, # dimension of V,
-        "dropout": 0.1, # dropout rate
-        "n_batch": 64, # batch_size
-        "n_epoch": 10, # training epoch
-    })
+    # device and pad set
+    config.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    config.i_pad = vocab_en["<pad>"]
+
+    # change config for en to de
+    config.n_enc_vocab = len(vocab_en)
+    config.n_dec_vocab = len(vocab_de)
+    config.n_enc_seq = len(train_en[0])
+    config.n_dec_seq = len(train_de[0])
 
     print(config)
     train_loader = build_loader(train_en, train_de, config.device, config.n_batch)
@@ -153,12 +142,13 @@ if __name__ == "__main__":
     test_loader = build_loader(test_en, test_de, config.device, config.n_batch)
     train_model(config, vocab_en, vocab_de, train_loader, valid_loader, test_loader, "data/ckpoint.en-de")
 
-    # conag config for de to en
+    # change config for de to en
     config.n_enc_vocab = len(vocab_de)
     config.n_dec_vocab = len(vocab_en)
     config.n_enc_seq = len(train_de[0])
     config.n_dec_seq = len(train_en[0])
 
+    print(config)
     train_loader = build_loader(train_de, train_en, config.device, config.n_batch)
     valid_loader = build_loader(valid_de, valid_en, config.device, config.n_batch)
     test_loader = build_loader(test_de, test_en, config.device, config.n_batch)

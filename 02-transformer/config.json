@@ -1,0 +1,17 @@
+{
+    "device": "cpu",
+    "n_enc_vocab": 0,
+    "n_dec_vocab": 0,
+    "n_enc_seq": 0,
+    "n_dec_seq": 0,
+    "n_layer": 6,
+    "d_embed": 300,
+    "i_pad": 0,
+    "d_ff": 64,
+    "n_heads": 4,
+    "d_k": 32,
+    "d_v": 32,
+    "dropout": 0.1,
+    "n_batch": 64,
+    "n_epoch": 10
+}

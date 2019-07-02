@@ -1,5 +1,5 @@
 import sys
-import gluonnlp as nlp
+import collections
 import numpy as np
 import pickle
 
@@ -40,9 +40,12 @@ def build_vocab(texts):
         for line in text:
             tokens.extend(line)
 
-    counter = nlp.data.count_tokens(tokens)
-    vocab = nlp.Vocab(counter, min_freq=1)
-
+    counter = collections.Counter(tokens)
+    vocab = { "<pad>": 0, "<unk>": 1, "<bos>": 2, "<eos>": 3 }
+    index = 4
+    for key, _ in counter.items():
+        vocab[key] = index
+        index += 1
     return vocab
 
 
@@ -70,19 +73,13 @@ def dump_data(train, valid, test, save_vocab, save_data):
     length = max(train_len, valid_len, test_len)
 
     vocab = build_vocab([train_text, valid_text, test_text])
-    
-    vocab_fw = {}
-    index = 0
-    for token in vocab.idx_to_token:
-        vocab_fw[token] = index
-        index += 1
 
-    train = np.array(text_to_data(vocab_fw, train_text, length + 2))
-    valid = np.array(text_to_data(vocab_fw, valid_text, length + 2))
-    test = np.array(text_to_data(vocab_fw, test_text, length + 2))
+    train = np.array(text_to_data(vocab, train_text, length + 2))
+    valid = np.array(text_to_data(vocab, valid_text, length + 2))
+    test = np.array(text_to_data(vocab, test_text, length + 2))
 
     with open(save_vocab, 'wb') as f:
-        pickle.dump((vocab_fw), f)
+        pickle.dump((vocab), f)
         print("save vocab to %s" % save_vocab)
 
     with open(save_data, 'wb') as f:

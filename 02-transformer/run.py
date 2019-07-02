@@ -2,6 +2,7 @@ import sys
 import argparse
 import fileinput
 
+import config
 import data
 import transformer
 
@@ -23,8 +24,8 @@ def exec_model(config, vocab_enc, vocab_dec, vocab_dec_bw, model, line):
     enc_inputs = enc_inputs[:, :-1]
     dec_inputs = dec_inputs[:, :-1]
 
-    enc_inputs = torch.tensor(enc_inputs, dtype=torch.long).to(device)
-    dec_inputs = torch.tensor(dec_inputs, dtype=torch.long).to(device)
+    enc_inputs = torch.tensor(enc_inputs, dtype=torch.long).to(config.device)
+    dec_inputs = torch.tensor(dec_inputs, dtype=torch.long).to(config.device)
     for i in range(config.n_dec_seq):
         dec_logits, _, _, _ = model(enc_inputs, dec_inputs)
         _, index = dec_logits.max(dim=2)
@@ -63,6 +64,8 @@ def run_model(config, vocab_enc, vocab_dec, vocab_de_bw, file):
 
 
 if __name__ == "__main__":
+    config = config.Config.load("config.json")
+
     parser = argparse.ArgumentParser()
     parser.add_argument("lang", choices=['en', 'de'], default='en', const='en', nargs='?')
     args = parser.parse_args()
@@ -72,36 +75,30 @@ if __name__ == "__main__":
     vocab_de = data.load_vocab("data/pickle.vocab.de")
     train_de, valid_de, test_de = data.load_data("data/pickle.data.de")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    config = Config({
-        "device": device, # cpu 또는 gpu 사용
-        "n_enc_vocab": len(vocab_en), # encoder vocab size
-        "n_dec_vocab": len(vocab_de), # decoder vocab size
-        "n_enc_seq": len(train_en[0]), # encode sequence length
-        "n_dec_seq": len(train_de[0]), # decode sequence length
-        "n_layer": 6, # encode / decode layer 수
-        "d_embed": 300,  # embedding dimension
-        "d_ff": 64, # FeedForward dimension
-        "n_heads": 4, # number of heads in Multi-Head Attention
-        "d_k": 32, # dimension of K(=Q)
-        "d_v": 32, # dimension of V,
-        "n_batch": 64, # batch_size
-        "learning_rate": 0.005, # learning rate
-        "n_epoch": 0, # training epoch
-    })
-
-    vocab_de_bw = {}
-    for key, value in vocab_de.items():
-        vocab_de_bw[value] = key
+    # device and pad set
+    config.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    config.i_pad = vocab_en["<pad>"]
 
     if args.lang == "en":
+        vocab_de_bw = {}
+        for key, value in vocab_de.items():
+            vocab_de_bw[value] = key
+    
         config.n_enc_vocab = len(vocab_en)
         config.n_dec_vocab = len(vocab_de)
+        config.n_enc_seq = len(train_en[0])
+        config.n_dec_seq = len(train_de[0])
 
         run_model(config, vocab_en, vocab_de, vocab_de_bw, "data/ckpoint.en-de")
     else:
+        vocab_en_bw = {}
+        for key, value in vocab_en.items():
+            vocab_en_bw[value] = key
+
         config.n_enc_vocab = len(vocab_de)
         config.n_dec_vocab = len(vocab_en)
+        config.n_enc_seq = len(train_de[0])
+        config.n_dec_seq = len(train_en[0])
 
-        run_model(config, vocab_de, vocab_en, vocab_de_bw, "data/ckpoint.de-en")
+        run_model(config, vocab_de, vocab_en, vocab_en_bw, "data/ckpoint.de-en")
 

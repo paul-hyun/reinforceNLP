@@ -101,7 +101,7 @@ class PoswiseFeedForwardNet(nn.Module):
     def forward(self, inputs):
         residual = inputs
 
-        output = nn.ReLU()(self.conv1(inputs.transpose(1, 2)))
+        output = F.relu(self.conv1(inputs.transpose(1, 2)))
         output = self.conv2(output).transpose(1, 2)
         output = self.dropout(output)
         return self.layer_norm(output + residual)
@@ -127,13 +127,13 @@ class Encoder(nn.Module):
         self.config = config
 
         self.enc_emb = nn.Embedding(self.config.n_enc_vocab, self.config.d_embed)
-        sinusoid_table = torch.tensor(get_sinusoid_encoding_table(self.config.n_enc_seq + 1, self.config.d_embed), dtype=torch.float).to(config.device)
+        sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.config.n_enc_seq + 1, self.config.d_embed))
         self.pos_emb = nn.Embedding.from_pretrained(sinusoid_table, freeze=True)
 
         self.layers = nn.ModuleList([EncoderLayer(self.config) for _ in range(self.config.n_layer)])
     
     def forward(self, enc_inputs):
-        possitions = torch.cumsum(torch.ones(enc_inputs.size(1), dtype=torch.long), dim=0).to(self.config.device) * (1 - enc_inputs.eq(self.config.i_pad)).to(torch.long)
+        possitions = torch.cumsum(torch.ones(enc_inputs.size(1), dtype=torch.long).to(self.config.device), dim=0) * (1 - enc_inputs.eq(self.config.i_pad)).to(torch.long)
         enc_outputs = self.enc_emb(enc_inputs) + self.pos_emb(possitions)
 
         enc_self_attn_mask = get_attn_pad_mask(enc_inputs, enc_inputs, self.config.i_pad)
@@ -167,13 +167,13 @@ class Decoder(nn.Module):
         self.config = config
 
         self.dec_emb = nn.Embedding(self.config.n_dec_vocab, self.config.d_embed)
-        sinusoid_table = torch.tensor(get_sinusoid_encoding_table(self.config.n_dec_seq + 1, self.config.d_embed), dtype=torch.float).to(config.device)
+        sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.config.n_dec_seq + 1, self.config.d_embed))
         self.pos_emb = nn.Embedding.from_pretrained(sinusoid_table, freeze=True)
 
         self.layers = nn.ModuleList([DecoderLayer(self.config) for _ in range(self.config.n_layer)])
     
     def forward(self, dec_inputs, enc_inputs, enc_outputs):
-        possitions = torch.cumsum(torch.ones(dec_inputs.size(1), dtype=torch.long), dim=0).to(self.config.device) * (1 - dec_inputs.eq(self.config.i_pad)).to(torch.long)
+        possitions = torch.cumsum(torch.ones(dec_inputs.size(1), dtype=torch.long).to(self.config.device), dim=0) * (1 - dec_inputs.eq(self.config.i_pad)).to(torch.long)
         dec_outputs = self.dec_emb(dec_inputs) + self.pos_emb(possitions)
 
         dec_attn_pad_mask = get_attn_pad_mask(dec_inputs, dec_inputs, self.config.i_pad)
